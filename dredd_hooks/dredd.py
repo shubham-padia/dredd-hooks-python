@@ -8,7 +8,7 @@ import json
 import sys
 import os
 import glob
-import imp
+import importlib.machinery
 import traceback
 from functools import wraps
 
@@ -49,7 +49,6 @@ server = None
 
 
 class Hooks(object):
-
     def __init__(self):
         self._before_all = []
         self._after_all = []
@@ -139,7 +138,9 @@ def load_hook_files(pathname):
         # loaded too.
         if os.path.dirname(real_path) not in sys.path:
             sys.path.append(os.path.dirname(real_path))
-        module = imp.load_source(os.path.basename(path), real_path)
+        print(real_path)
+        print(os.path.basename(path))
+        module = importlib.machinery.SourceFileLoader(os.path.basename(path), real_path)
         for name in dir(module):
             obj = getattr(module, name)
             if hasattr(obj, 'dredd_hooks') and callable(obj):
@@ -173,8 +174,10 @@ def flusher(func):
         sys.stderr.flush()
         sys.stdout.flush()
         return result
+
     flusher.flushed[func] = call
     return call
+
 
 flusher.flushed = {}
 
@@ -214,18 +217,21 @@ def after_each(f):
 def before_validation(name):
     def decorator(f):
         return make_hook(f, BEFORE_VALIDATION, name)
+
     return decorator
 
 
 def before(name):
     def decorator(f):
         return make_hook(f, BEFORE, name)
+
     return decorator
 
 
 def after(name):
     def decorator(f):
         return make_hook(f, AFTER, name)
+
     return decorator
 
 
@@ -237,18 +243,18 @@ def shutdown():
     sys.stdout.flush()
 
 
-def main(files, host=HOST, port=PORT):
+def main(args):
     global server
     global hooks
     hooks = Hooks()
     # Load hook files
-    for f in files:
-        load_hook_files(f)
+    for a in args:
+        load_hook_files(a)
 
     try:
         # Start the server
         SocketServer.TCPServer.allow_reuse_address = True
-        server = SocketServer.TCPServer((host, port), HookHandler)
+        server = SocketServer.TCPServer((HOST, PORT), HookHandler)
         print('Starting Dredd Python hooks handler')
         sys.stdout.flush()
         server.serve_forever()
